@@ -301,19 +301,40 @@ library(tidyverse)
 selectedDatasetA <- trainingSetProperA %>% select('age','sex','pclass','embarked','survived')
 selectedTestDatasetA <- testSetProperA %>% select('age','sex','pclass','embarked','survived')
 
+#replacing pclass for factors 
+selectedDatasetA$pclass[selectedDatasetA$pclass == 1] <- "first"
+selectedDatasetA$pclass[selectedDatasetA$pclass == 2] <- "second"
+selectedDatasetA$pclass[selectedDatasetA$pclass == 3] <- "third"
+
+selectedTestDatasetA$pclass[selectedTestDatasetA$pclass == 1] <- "first"
+selectedTestDatasetA$pclass[selectedTestDatasetA$pclass == 2] <- "second"
+selectedTestDatasetA$pclass[selectedTestDatasetA$pclass == 3] <- "third"
+
 write.csv(selectedDatasetA, "trainingDatasetA", )
 
 modelGLM <- glm(survived ~ .,family=binomial(link='logit'),data=selectedDatasetA)
+
+#details of logistic regression
 summary(modelGLM)
 
 #significant factors - sex, pclass, age
 
+#model formula
+#hasSurvived = 3.496 - 0.03(age) - 2.44(the patient is male) - 1.0596(travelingBy2ndClass) - 1.879115(travelingBy3rdClass) - 0.595(GotOnBoarnInPortQ) -0.4122(GotOnBoardInPortS)
+
+#Along with increase of age by 1 year the chances of survival are decreasing by 4.101 times ceteris paribus
+#Changes of survival for men were 13.512 times smaller than for female ceteris paribus
+#Chances of survival for passengers traveling in the second class were 3.930 times smaller than for passengers traveling in first class ceteris paribus
+#Chances of survival for pasengers traveling in third class were 7,603 smaller than for passengers traveling first class ceteris paribus
+
 install.packages("pscl")
 library(pscl)
 
+#12
+
 #counting pseudo R2 to validate model fit
 pR2(modelGLM) #McFadden pR2 > 0.3231 -> ~ 32% - very low 
-
+library(ROCR) 
 #measuring accuracy with test set
 fitted.results <- predict(modelGLM,selectedTestDatasetA)
 fitted.results <- ifelse(fitted.results > 0.5,1,0)
@@ -324,6 +345,51 @@ print(paste('Accuracy',1-misClasificError))
 "Accuracy 0.793577" # => 0.79355 => 79.35% success prediction for testSet 
 
 
+#13 & 14 Random forrest
+selectedDatasetRandomForest <- trainingSetProperA %>% select('age','sex','pclass','embarked','survived')
+selectedTestDatasetRandomForest <- testSetProperA %>% select('age','sex','pclass','embarked','survived')
+
+#make dependent variable categorical
+selectedDatasetRandomForest$survived <- as.factor(selectedDatasetRandomForest$survived)
+
+#random forest classification
+
+library(randomForest)
+rForest <- rf <- randomForest(
+  survived ~ .,
+  data=selectedDatasetRandomForest
+)
+
+rForest
+
+#results
+#OOB estimate of  error rate: 20.62%
+#Confusion matrix:
+#  0   1 class.error
+#0 482  45  0.08538899
+#1 135 211  0.39017341
+
+#error misclasified to total observations - 19.72%
+#accuracy = 1-OOB => 80,28% => it's quite ok
+#sensitivity => TP/(TP+FN) => 0.7811 ~ 78% success in predicting the real survived cases -> Quite good
+SENS_RandomForest <- 482/(482+135)
+SENS_RandomForest
+#specificity => TN/(FP+TN) => 0.82421 ~ 82% -> success in predicting real not survived cases => Quite good
+SPEC_RandomForest <- 211/(45+211)
+SPEC_RandomForest
+
+
+predRandomForest <- predict(rForest,type = "prob")
+install.packages("ROCR")
+library(ROCR)
+performanceRandomForest <- prediction(predRandomForest[,2], selectedDatasetRandomForest$survived)
+aucRandomForest <- performance(performanceRandomForest, "auc")
+
+#True Positive and Negative Rate
+predRandomForest2 = performance(performanceRandomForest, "tpr","fpr")
+
+plot(predRandomForest2,main="ROC Curve for Random Forest",col=2,lwd=2)
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
 
 
 
