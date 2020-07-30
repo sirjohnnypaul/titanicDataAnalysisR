@@ -198,6 +198,8 @@ plot(workingData$age, workingData$fare, main="Age vs Price",
      xlab="Age ", ylab="Price for ticket", pch=19, col='blue')
 abline(lm(workingData$fare~workingData$age), col="red") 
 
+#Whe should consider removing outliers for maximising predicition rate
+
 cor.test(workingData$age, workingData$fare, method="pearson")
 #H0: correlation = 0
 #H1: correlation != 0
@@ -294,7 +296,7 @@ testSetProperB$imputed_age <- with(testSetProperB, impute(age,median))
 #check where it was imputed compare original with imputed in dataset
 head(testSetProperB$imputed_age, n=30)
 
-#11 Setting Generalized Linear Model for Logit Regression with LOGIT link function
+#11 & 12 Setting Generalized Linear Model for Logit Regression with LOGIT link function
 install.packages("tidyverse")
 library(tidyverse)
 
@@ -337,6 +339,8 @@ predY_A
 #add column to testSet to visualy verify succesfull prdictions by comparing records from the dataset
 selectedTestDatasetA$predictedGLM <- predY_A
 
+write.csv(selectedTestDatasetA, "predictedTestDatasetGLM.csv", )
+
 #confusion matrix
 confMatrixGLM <- table(selectedTestDatasetA$survived,predY_A)
 confMatrixGLM
@@ -355,12 +359,15 @@ library(pROC)
 #AUC + ROC
 gGLM <- roc(survived ~ pred_probability, data = selectedTestDatasetA[1:5])
 gGLM
-#AUC => 0.8462
-plot(gGLM, print.auc = TRUE, xlab="False Positive Percentage", ylab="True Positive Percentage", print.)
+#AUC => 0.8462 >0.5 => 84.6% 
+plot(gGLM, print.auc = TRUE, xlab="False Positive Percentage", ylab="True Positive Percentage")
+
+#Ginie Score  (2*AUC)-1 => 0.6924 ~ in 69% the model is perfect
+ginieGLM <- (2*0.8462)-1
+ginieGLM
 
 #F1 score => 
 #precision = TP / (TP + FP) 
-
 #recall = TP / (TP + FN) => SENSITIVITY
 
 precisionGLM <- 110/(110+44)
@@ -371,17 +378,11 @@ F1ScoreGLM
 
 #F1 score = 0.7096774 => 70,9 % sucessful prediction score
 
-#visualisation
-install.packages('ElemStatLearn')
-library(ElemStatLearn)
-
 install.packages("pscl")
 library(pscl)
 
-#12
-
 #counting pseudo R2 to validate model fit
-pR2(modelGLM) #McFadden pR2 > 0.3231 -> ~ 32% - very low 
+pR2(modelGLM) #McFadden pR2 > 0.3231 -> ~ 32% - quite low 
 library(ROCR) 
 #measuring accuracy with test set
 fitted.results <- predict(modelGLM,selectedTestDatasetA)
@@ -390,7 +391,7 @@ fitted.results <- ifelse(fitted.results > 0.5,1,0)
 misClasificError <- mean(fitted.results != selectedTestDatasetA$survived)
 print(paste('Accuracy',1-misClasificError))
 
-"Accuracy 0.793577" # => 0.79355 => 79.35% success prediction for testSet 
+#Accuracy 0.793577" # => 0.79355 => 79.35% success prediction for testSet 
 
 
 #13 & 14 Random forrest
@@ -401,7 +402,6 @@ selectedTestDatasetRandomForest <- testSetProperA %>% select('age','sex','pclass
 selectedDatasetRandomForest$survived <- as.factor(selectedDatasetRandomForest$survived)
 
 #random forest classification
-
 library(randomForest)
 rForest <- rf <- randomForest(
   survived ~ .,
@@ -409,6 +409,9 @@ rForest <- rf <- randomForest(
 )
 
 rForest
+summary(rForest)
+
+rForest$terms
 
 #results
 #OOB estimate of  error rate: 20.62%
@@ -419,25 +422,67 @@ rForest
 
 #error misclasified to total observations - 19.72%
 #accuracy = 1-OOB => 80,28% => it's quite ok
-#sensitivity => TP/(TP+FN) => 0.7811 ~ 78% success in predicting the real survived cases -> Quite good
-SENS_RandomForest <- 482/(482+135)
+#accuracy => (TP + TN) / (TP + TN + FP + FN) => 0.7938144 ~ 79,4% success in predicting survived cases => very simillar to GLM model
+ACC_RF = (211 + 482) / (211 + 482 + 45 + 135)
+ACC_RF
+#sensitivity => TP/(TP+FN) => 0.6098266 ~ 60,9% success in predicting the real survived cases -> Lower success rate than in case of GLM
+SENS_RandomForest <- 211/(211+135)
 SENS_RandomForest
-#specificity => TN/(FP+TN) => 0.82421 ~ 82% -> success in predicting real not survived cases => Quite good
-SPEC_RandomForest <- 211/(45+211)
+#specificity => TN/(FP+TN) => 0.914611 ~ 91,4% -> the success in predicting real not survived cases is better for Random Forest than for GLM
+SPEC_RandomForest <- 482/(45+482)
 SPEC_RandomForest
 
+#prediction on test set
+predictionRF <- predict(rForest, newdata = selectedTestDatasetRandomForest[1:4])
+confMatrixRF <- table(selectedTestDatasetRandomForest$survived,predictionRF)
+confMatrixRF
 
-predRandomForest <- predict(rForest,type = "prob")
-install.packages("ROCR")
-library(ROCR)
-performanceRandomForest <- prediction(predRandomForest[,2], selectedDatasetRandomForest$survived)
-aucRandomForest <- performance(performanceRandomForest, "auc")
+#accuracy => (TP + TN) / (TP + TN + FP + FN) => 0.8119266 ~ 81,19% success in predicting survived cases
+ACC_RFTest = (94 + 260) / (94 + 260 + 22 + 60)
+ACC_RFTest
+#sensitivity => TP/(TP+FN) => 0.8103448 ~ 81,0% success in predicting the real survived cases
+SENS_RFTest <- 94/(94+22)
+SENS_RFTest
+#specificity => TN/(FP+TN) => 0.8125 ~ 81,25% -> the success in predicting real not survived cases
+SPEC_RFTest <- 260/(60+260)
+SPEC_RFTest
 
-#True Positive and Negative Rate
-predRandomForest2 = performance(performanceRandomForest, "tpr","fpr")
+#add column to testSet to verify succesfull prdictions by comparing records from the dataset
+selectedTestDatasetRandomForest$predictedRF <- predictionRF
 
-plot(predRandomForest2,main="ROC Curve for Random Forest",col=2,lwd=2)
-abline(a=0,b=1,lwd=2,lty=2,col="gray")
+write.csv(selectedTestDatasetRandomForest, "predictedTestDatasetRandomForest.csv", )
+
+library(pROC)
+#AUC + ROC
+predictionRF2 <- predict(rForest, newdata = selectedTestDatasetRandomForest[1:4], type = 'prob')
+predictionRF2
+gRandomForest <- roc(as.numeric(selectedTestDatasetRandomForest$survived),predictionRF2[,2])
+gRandomForest
+
+#AUC => 0.8436 >0.5 => 84.36% 
+plot(gRandomForest, print.auc = TRUE, xlab="False Positive Percentage", ylab="True Positive Percentage")
+
+#Ginie Score  (2*AUC)-1 => 0.6872 ~ in 68,72% the model is perfect
+ginieRF <- (2*0.8436)-1
+ginieRF
+
+#F1 score => 
+#precision = TP / (TP + FP) 
+#recall = TP / (TP + FN) => SENSITIVITY
+
+#accuracy => (TP + TN) / (TP + TN + FP + FN) => 0.8119266 ~ 81,19% success in predicting survived cases
+ACC_RFTest = (94 + 260) / (94 + 260 + 22 + 60)
+ACC_RFTest
+
+precisionRF <- 94/(94+22)
+recallRF <- SENS_RandomForest
+#F1 = 2((precision x recall)/(precision + recall))
+F1ScoreRF <- 2*((precisionRF*recallRF)/(precisionRF+recallRF))
+F1ScoreRF
+
+#F1 score =0.6959298 => 69,59 % sucessful prediction score
+
+
 
 
 
