@@ -312,20 +312,68 @@ selectedTestDatasetA$pclass[selectedTestDatasetA$pclass == 3] <- "third"
 
 write.csv(selectedDatasetA, "trainingDatasetA", )
 
-modelGLM <- glm(survived ~ .,family=binomial(link='logit'),data=selectedDatasetA)
-
+#simple linear regression using general linear model
+modelGLM <- glm(formula = survived ~ .,family=binomial,data=selectedDatasetA)
 #details of logistic regression
 summary(modelGLM)
 
-#significant factors - sex, pclass, age
-
+#significant factors - sex, pclass, age, embarked is not significant -> not taking into the account during further analysis
+#AIC for comparing models - 844.1 
 #model formula
 #hasSurvived = 3.496 - 0.03(age) - 2.44(the patient is male) - 1.0596(travelingBy2ndClass) - 1.879115(travelingBy3rdClass) - 0.595(GotOnBoarnInPortQ) -0.4122(GotOnBoardInPortS)
+#Along with increase of age by 1 year the chances of survival were decreasing by 3% ceteris paribus
+#Changes of survival for men were decreased by 244% than in case of female ceteris paribus
+#Chances of survival for passengers traveling in the second class were lower by 105.9% than for passengers traveling in first class ceteris paribus
+#Chances of survival for pasengers traveling in third class were lower by 187,9% than for passengers traveling first class ceteris paribus
 
-#Along with increase of age by 1 year the chances of survival are decreasing by 4.101 times ceteris paribus
-#Changes of survival for men were 13.512 times smaller than for female ceteris paribus
-#Chances of survival for passengers traveling in the second class were 3.930 times smaller than for passengers traveling in first class ceteris paribus
-#Chances of survival for pasengers traveling in third class were 7,603 smaller than for passengers traveling first class ceteris paribus
+#predicted probability, response - gives probabilities in one vector
+pred_probability <- predict(modelGLM, type = 'response', newdata = selectedTestDatasetA[1:4])
+#set of all probabilities for each record in test dataset
+pred_probability
+#vector of predicted values for chance of survival 1- yes 0 - no
+predY_A <- ifelse(pred_probability > 0.5, 1, 0)
+predY_A
+
+#add column to testSet to visualy verify succesfull prdictions by comparing records from the dataset
+selectedTestDatasetA$predictedGLM <- predY_A
+
+#confusion matrix
+confMatrixGLM <- table(selectedTestDatasetA$survived,predY_A)
+confMatrixGLM
+
+#accuracy => (TP + TN) / (TP + TN + FP + FN) => 0.793578 ~ 79,4% success in predicting survived cases
+ACC_GLM = (110 + 236) / (110 + 236 + 44 + 46)
+ACC_GLM
+#sensitivity => TP/(TP+FN) => 0.7051282 ~ 70,5% success in predicting the real survived cases -> Quite ok
+SENS_GLM <- 110/(110+46)
+SENS_GLM
+#specificity => TN/(FP+TN) => 0.8428571 ~ 84,2% -> success in predicting real not survived cases => Quite good
+SPEC_GLM <- 236/(44+236)
+SPEC_GLM
+
+library(pROC)
+#AUC + ROC
+gGLM <- roc(survived ~ pred_probability, data = selectedTestDatasetA[1:5])
+gGLM
+#AUC => 0.8462
+plot(gGLM, print.auc = TRUE, xlab="False Positive Percentage", ylab="True Positive Percentage", print.)
+
+#F1 score => 
+#precision = TP / (TP + FP) 
+
+#recall = TP / (TP + FN) => SENSITIVITY
+
+precisionGLM <- 110/(110+44)
+recallGLM <- SENS_GLM
+#F1 = 2((precision x recall)/(precision + recall))
+F1ScoreGLM <- 2*((precisionGLM*recallGLM)/(precisionGLM+recallGLM))
+F1ScoreGLM
+
+#F1 score = 0.7096774 => 70,9 % sucessful prediction score
+
+#visualisation
+install.packages('ElemStatLearn')
+library(ElemStatLearn)
 
 install.packages("pscl")
 library(pscl)
